@@ -62,7 +62,48 @@ function registerDevice(element) {
           model: model
         }
       }
-      break;
+
+        const illuminance_payload = {
+            ...payload,
+            state_topic: 'warema/' + element.snr + '/illuminance/state',
+            device_class: 'illuminance',
+            unique_id: element.snr + '_illuminance',
+            object_id: element.snr + '_illuminance',
+            unit_of_measurement: 'lx',
+        };
+        
+        const temperature_payload = {
+            ...payload,
+            state_topic: 'warema/' + element.snr + '/temperature/state',
+            device_class: 'temperature',
+            unique_id: element.snr + '_temperature',
+            object_id: element.snr + '_temperature',
+            unit_of_measurement: '°C',
+        }
+        
+        const wind_payload = {
+            ...payload,
+            state_topic: 'warema/' + element.snr + '/wind/state',
+            device_class: 'wind_speed',
+            unique_id: element.snr + '_wind',
+            object_id: element.snr + '_wind',
+            unit_of_measurement: 'm/s',
+        }
+        
+        const rain_payload = {
+            ...payload,
+            state_topic: 'warema/' + element.snr + '/rain/state',
+            device_class: 'moisture',
+            unique_id: element.snr + '_rain',
+            object_id: element.snr + '_rain',
+        }
+        
+        client.publish(availability_topic, 'online', {retain: true})
+    
+        devices[element.snr] = {};
+        log.info('No need to add to stick, weather updates are broadcasted. ' + element.snr + ' with type: ' + element.type) 
+          
+      return;
     // WMS WebControl Pro - while part of the network, we have no business to do with it.
     case 9:
       return
@@ -123,6 +164,22 @@ function registerDevice(element) {
         set_position_topic: 'warema/' + snr + '/set_position',
       }
       break;
+    case "28":
+        model = 'LED';
+        payload = {
+            ...base_payload,
+            device: {
+                ...base_device,
+                model: model
+            },
+            position_open: 0,
+            position_closed: 100,
+            state_topic: 'warema/' + element.snr + '/state',
+            command_topic: 'warema/' + element.snr + '/set',
+            position_topic: 'warema/' + element.snr + '/position',
+            set_position_topic: 'warema/' + element.snr + '/set_position',
+        }
+        break;
     default:
       console.log('Unrecognized device type: ' + element.type)
       model = 'Unknown model ' + element.type
