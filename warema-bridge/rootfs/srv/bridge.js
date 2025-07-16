@@ -53,8 +53,8 @@ function registerDevice(element) {
   var model
   var payload
   switch (parseInt(element.type)) {
-    case 6:
-      model = 'Weather station'
+    case 63:
+      model = 'Weather station Pro'
       payload = {
         ...base_payload,
         device: {
