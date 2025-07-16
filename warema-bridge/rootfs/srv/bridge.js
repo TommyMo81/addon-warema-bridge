@@ -133,10 +133,10 @@ function registerDevice(element) {
             },
             position_open: 0,
             position_closed: 100,
-            state_topic: 'warema/' + element.snr + '/state',
-            command_topic: 'warema/' + element.snr + '/set',
-            position_topic: 'warema/' + element.snr + '/position',
-            set_position_topic: 'warema/' + element.snr + '/set_position',
+            state_topic: 'warema/' + snr + '/state',
+            command_topic: 'warema/' + snr + '/set',
+            position_topic: 'warema/' + snr + '/position',
+            set_position_topic: 'warema/' + snr + '/set_position',
         }
         break;
     default:
