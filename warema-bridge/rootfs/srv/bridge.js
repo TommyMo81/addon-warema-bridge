@@ -61,48 +61,7 @@ function registerDevice(element) {
           ...base_device,
           model: model
         }
-      }
-
-        const illuminance_payload = {
-            ...payload,
-            state_topic: 'warema/' + element.snr + '/illuminance/state',
-            device_class: 'illuminance',
-            unique_id: element.snr + '_illuminance',
-            object_id: element.snr + '_illuminance',
-            unit_of_measurement: 'lx',
-        };
-        
-        const temperature_payload = {
-            ...payload,
-            state_topic: 'warema/' + element.snr + '/temperature/state',
-            device_class: 'temperature',
-            unique_id: element.snr + '_temperature',
-            object_id: element.snr + '_temperature',
-            unit_of_measurement: '°C',
-        }
-        
-        const wind_payload = {
-            ...payload,
-            state_topic: 'warema/' + element.snr + '/wind/state',
-            device_class: 'wind_speed',
-            unique_id: element.snr + '_wind',
-            object_id: element.snr + '_wind',
-            unit_of_measurement: 'm/s',
-        }
-        
-        const rain_payload = {
-            ...payload,
-            state_topic: 'warema/' + element.snr + '/rain/state',
-            device_class: 'moisture',
-            unique_id: element.snr + '_rain',
-            object_id: element.snr + '_rain',
-        }
-        
-        client.publish(availability_topic, 'online', {retain: true})
-    
-        devices[element.snr] = {};
-        log.info('No need to add to stick, weather updates are broadcasted. ' + element.snr + ' with type: ' + element.type) 
-          
+      }          
       break;
     // WMS WebControl Pro - while part of the network, we have no business to do with it.
     case "09":
