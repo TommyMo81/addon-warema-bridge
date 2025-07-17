@@ -202,6 +202,7 @@ function callback(err, msg) {
         break
       case 'wms-vb-rcv-weather-broadcast':
         if (registered_shades.includes(msg.payload.weather.snr)) {
+	  console.log('Warema Weather Station registration')
           client.publish('homeassistant/sensor/warema/' + msg.payload.weather.snr + '/state', 
                          JSON.stringify( msg.payload.weather ));
         } else {
