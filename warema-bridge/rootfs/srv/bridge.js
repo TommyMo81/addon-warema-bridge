@@ -1,15 +1,14 @@
-const warema = require('./warema-wms-venetian-blinds');
+const { createLogger, format, transports } = require('winston');
+const logger = createLogger({
+  level: process.env.LOGLEVEL || "warn",
+  format: format.simple(),
+  transports: [ new transports.Console()  ],
+});
+
+logger.info("Start logging");
+
 const mqtt = require('mqtt')
-
-originalLog = console.log;
-console.log = function () {
-    var args = [].slice.call(arguments);
-    originalLog.apply(console.log,[getCurrentDateString()].concat(args));
-};
-
-function getCurrentDateString() {
-    return (new Date()).toISOString() + ':';
-};
+const warema = require('warema-wms-venetian-blinds');
 
 process.on('SIGINT', function() {
     process.exit(0);
@@ -17,6 +16,8 @@ process.on('SIGINT', function() {
 
 const ignoredDevices = process.env.IGNORED_DEVICES ? process.env.IGNORED_DEVICES.split(',') : []
 const forceDevices = process.env.FORCE_DEVICES ? process.env.FORCE_DEVICES.split(',') : []
+const knownDevices = process.env.KNOWN_DEVICES ? 
+        process.env.KNOWN_DEVICES.split("\n").map( x => JSON.parse(x)) : []
 
 const settingsPar = {
     wmsChannel   : process.env.WMS_CHANNEL     || 17,
@@ -26,149 +27,7 @@ const settingsPar = {
   };
 
 var registered_shades = []
-var shade_position = {}
-
-function registerDevice(element) {
-  snr = String(element.snr).replace(/^0+/, '')
-  console.log('Found device of type "' + element.typeStr + '" with type #' + element.type)
-  console.log('Registering ' + snr)
-  var topic = 'homeassistant/cover/' + snr + '/' + snr + '/config'
-  var availability_topic = 'warema/' + snr + '/availability'
-
-  var base_payload = {
-    name: null,
-    availability: [
-      {topic: 'warema/bridge/state'},
-      {topic: availability_topic}
-    ],
-    unique_id: snr
-  }
-
-  var base_device = {
-    identifiers: snr,
-    manufacturer: "Warema",
-    name: snr
-  }
-
-  var model
-  var payload
-  switch (parseInt(element.type)) {
-    case 63:
-      model = 'Weather station Pro'
-      payload = {
-        ...base_payload,
-        device: {
-          ...base_device,
-          model: model
-        }
-      }          
-      break;
-    // WMS WebControl Pro - while part of the network, we have no business to do with it.
-    case 9:
-      return
-    case 20:
-      model = 'Plug receiver'
-      payload = {
-        ...base_payload,
-        device: {
-          ...base_device,
-          model: model
-        },
-        position_open: 0,
-        position_closed: 100,
-        command_topic: 'warema/' + snr + '/set',
-        position_topic: 'warema/' + snr + '/position',
-        tilt_status_topic: 'warema/' + snr + '/tilt',
-        set_position_topic: 'warema/' + snr + '/set_position',
-        tilt_command_topic: 'warema/' + snr + '/set_tilt',
-        tilt_closed_value: 100,
-        tilt_opened_value: -100,
-        tilt_min: 100,
-        tilt_max: -100,
-      }
-      break;
-    case 21:
-      model = 'Actuator UP'
-      payload = {
-        ...base_payload,
-        device: {
-          ...base_device,
-          model: model
-        },
-        position_open: 0,
-        position_closed: 100,
-        command_topic: 'warema/' + snr + '/set',
-        position_topic: 'warema/' + snr + '/position',
-        tilt_status_topic: 'warema/' + snr + '/tilt',
-        set_position_topic: 'warema/' + snr + '/set_position',
-        tilt_command_topic: 'warema/' + snr + '/set_tilt',
-        tilt_closed_value: 100,
-        tilt_opened_value: -100,
-        tilt_min: 100,
-        tilt_max: -100,
-      }
-      break;
-    case 25:
-      model = 'Vertical awning'
-      payload = {
-        ...base_payload,
-        device: {
-          ...base_device,
-          model: model
-        },
-        position_open: 0,
-        position_closed: 100,
-        command_topic: 'warema/' + snr + '/set',
-        position_topic: 'warema/' + snr + '/position',
-        set_position_topic: 'warema/' + snr + '/set_position',
-      }
-      break;
-    case 28:
-        model = 'LED';
-        payload = {
-            ...base_payload,
-            device: {
-                ...base_device,
-                model: model
-            },
-            position_open: 0,
-            position_closed: 100,
-            state_topic: 'warema/' + snr + '/state',
-            command_topic: 'warema/' + snr + '/set',
-            position_topic: 'warema/' + snr + '/position',
-            set_position_topic: 'warema/' + snr + '/set_position',
-        }
-        break;
-    default:
-      console.log('Unrecognized device type: ' + element.type)
-      model = 'Unknown model ' + element.type
-      return
-  }
-
-  if (ignoredDevices.includes(element.snr.toString())) {
-    console.log('Ignoring device ' + snr + ' (type ' + element.type + ')')
-  } else {
-    if (!registered_shades.includes(snr)) {
-      console.log('Adding device ' + snr + ' (type ' + element.type + ') to warema stick')
-      stickUsb.vnBlindAdd(parseInt(element.snr), element.snr.toString());
-      registered_shades.push(snr)
-    }
-    console.log('Publishing state of device ' + snr + ' (type ' + element.type + ') to Home Assistant')
-    client.publish(availability_topic, 'online', {retain: true})
-    client.publish(topic, JSON.stringify(payload), {retain: true})
-  }
-}
-
-function registerDevices() {
-  if (forceDevices && forceDevices.length) {
-    forceDevices.forEach(element => {
-      registerDevice({snr: element.split(':')[0], type: element.split(':')[1] ? element.split(':')[1] : 25 })
-    })
-  } else {
-    console.log('Scanning...')
-    stickUsb.scanDevices({autoAssignBlinds: false});
-  }
-}
+var shade_position = []
 
 /**
  * Publishes a discovery payload to MQTT to register a weather station
@@ -224,47 +83,136 @@ function registerWeatherStation(snr) {
   registered_shades += snr
 }
 
+function registerDevice(element) {
+  console.log('Registering ' + element.snr)
+  if(element.name == undefined) {
+	  element.name=element.snr.toString()
+  }
+  var topic = 'homeassistant/cover/' + element.snr + '/' + element.snr + '/config'
+  var availability_topic = 'warema/' + element.snr + '/availability'
+
+  var base_payload = {
+    name: element.snr,
+    availability: [
+      {topic: 'warema/bridge/state'},
+      {topic: availability_topic}
+    ],
+    unique_id: element.snr
+  }
+
+  var base_device = {
+    identifiers: element.snr,
+    manufacturer: "Warema",
+    name: element.snr
+  }
+
+  var model
+  var payload
+  switch (parseInt(element.type)) {
+    case 20:
+      model = 'Plug receiver'
+      payload = {
+        ...base_payload,
+        device: {
+          ...base_device,
+          model: model
+        },
+        position_open: 0,
+        position_closed: 100,
+        command_topic: 'warema/' + element.snr + '/set',
+        position_topic: 'warema/' + element.snr + '/position',
+        tilt_status_topic: 'warema/' + element.snr + '/tilt',
+        set_position_topic: 'warema/' + element.snr + '/set_position',
+        tilt_command_topic: 'warema/' + element.snr + '/set_tilt',
+        tilt_closed_value: 100,
+        tilt_opened_value: -100,
+        tilt_min: -100,
+        tilt_max: 100,
+      }
+      break
+    case 25:
+      model = 'Vertical awning'
+      payload = {
+        ...base_payload,
+        device: {
+          ...base_device,
+          model: model
+        },
+        position_open: 0,
+        position_closed: 100,
+        command_topic: 'warema/' + element.snr + '/set',
+        position_topic: 'warema/' + element.snr + '/position',
+        set_position_topic: 'warema/' + element.snr + '/set_position',
+      }
+      break
+    default:
+      console.log('Unrecognized device type: ' + element.type)
+      model = 'Unknown model ' + element.type
+      return
+  }
+
+  if (ignoredDevices.includes(element.snr.toString())) {
+    console.log('Ignoring and removing device ' + element.snr + ' (type ' + element.type + ')')
+  } else {
+    console.log('Adding device ' + element.snr + ' (type ' + element.type + ')')
+
+    stickUsb.vnBlindAdd(parseInt(element.snr), element.name);
+    registered_shades += element.snr
+    client.publish(availability_topic, 'online', {retain: true})
+  }
+  client.publish(topic, JSON.stringify(payload))
+}
+
+function registerDevices() {
+  knownDevices.forEach(x => registerDevice(x))
+}
+
+/**
+ * callback function that the stick (Warema Antenna) will use to 
+ * handle objectified events 
+ * @param {*} err Received error
+ * @param {*} msg  Received message
+ */
 function callback(err, msg) {
   if(err) {
-    console.log('ERROR: ' + err);
+    logger.error('callback( ERROR: ' + err + ')');
   }
   if(msg) {
+    logger.silly("callback ( topic: " + msg.topic + " )" );
     switch (msg.topic) {
       case 'wms-vb-init-completion':
         console.log('Warema init completed')
         registerDevices()
-        stickUsb.setPosUpdInterval(10000);
-        stickUsb.setWatchMovingBlindsInterval(1000)
-        break;
+        stickUsb.setPosUpdInterval(30000);
+        break
       case 'wms-vb-rcv-weather-broadcast':
         if (registered_shades.includes(msg.payload.weather.snr)) {
-          client.publish('homeassistant/sensor/warema/' + msg.payload.weather.snr + '/state', JSON.stringify( msg.payload.weather ));
+          client.publish('homeassistant/sensor/warema/' + msg.payload.weather.snr + '/state', 
+                         JSON.stringify( msg.payload.weather ));
         } else {
           registerWeatherStation(msg.payload.weather.snr);
         }
-        break;
+        break
       case 'wms-vb-blind-position-update':
-        client.publish('warema/' + msg.payload.snr + '/position', msg.payload.position.toString(), {retain: true})
-        client.publish('warema/' + msg.payload.snr + '/tilt', msg.payload.angle.toString(), {retain: true})
+        client.publish('warema/' + msg.payload.snr + '/position', msg.payload.position.toString())
+        client.publish('warema/' + msg.payload.snr + '/tilt', msg.payload.angle.toString())
         shade_position[msg.payload.snr] = {
           position: msg.payload.position,
           angle: msg.payload.angle
         }
-        break;
+        break
       case 'wms-vb-scanned-devices':
         console.log('Scanned devices.')
         msg.payload.devices.forEach(element => registerDevice(element))
         console.log(stickUsb.vnBlindsList())
-        break;
+        break
       default:
         console.log('UNKNOWN MESSAGE: ' + JSON.stringify(msg));
     }
   }
 }
 
-var stickUsb = null
-
-const client = mqtt.connect(
+var client = mqtt.connect(
   process.env.MQTT_SERVER,
   {
     username: process.env.MQTT_USER,
@@ -277,71 +225,78 @@ const client = mqtt.connect(
   }
 )
 
+var stickUsb
+
+process.on('SIGINT', function() {
+  stickUsb.close();
+});
+
+/**
+ * MQTT connect and subscribe
+ * Opens USB port
+ */
 client.on('connect', function (connack) {
-  console.log('Connected to MQTT')
-  client.subscribe('warema/#')
-  client.subscribe('homeassistant/status')
-  if (stickUsb == null) {
-    stickUsb = new warema(settingsPar.wmsSerialPort,
-      settingsPar.wmsChannel,
-      settingsPar.wmsPanid,
-      settingsPar.wmsKey,
-      {},
-      callback
-    );
-  }
-  client.publish('warema/bridge/state', 'online', {retain: true})
+  var subscriptions=['warema/#', 'homeassistant/status'];
+  logger.info('Connected to MQTT, subscribing to ' + subscriptions.join(", "))
+  subscriptions.forEach(s => client.subscribe(s));
+  stickUsb = new warema(settingsPar.wmsSerialPort,
+    settingsPar.wmsChannel,
+    settingsPar.wmsPanid,
+    settingsPar.wmsKey,
+    {},
+    callback
+  );
 })
 
 client.on('error', function (error) {
-  console.log('MQTT Error: ' + error.toString())
+  logger.error('MQTT Error: ' + error.toString())
 })
 
-client.on('reconnect', () => {
-  console.log('Reconnecting to MQTT');
-});
-
+/**
+ * callback function to handle events on MQTT subscribed topics
+ */
 client.on('message', function (topic, message) {
+  logger.silly("MQTT RCV " + topic + " << " + message);
   var scope = topic.split('/')[0]
   if (scope == 'warema') {
     var device = parseInt(topic.split('/')[1])
     var command = topic.split('/')[2]
     switch (command) {
+      case 'rain':
+      case 'wind':
+      case 'temperature':
+      case 'illuminance':
+	break
+      default:
+//	console.log(topic + ':' + message.toString());
+//	console.log('device: ' + device + ' === command: ' + command);
+    }
+    switch (command) {
       case 'set':
         switch (message.toString()) {
           case 'CLOSE':
-            console.log('Sending CLOSE command to device: ' + device)
-            stickUsb.vnBlindSetPosition(device, 100, 100)
+            stickUsb.vnBlindSetPosition(device, 100, 0)
             break;
           case 'OPEN':
-            console.log('Sending OPEN command to device: ' + device)
             stickUsb.vnBlindSetPosition(device, 0, -100)
             break;
           case 'STOP':
-            console.log('Sending STOP command to device: ' + device)
             stickUsb.vnBlindStop(device)
             break;
         }
-        break;
+        break
       case 'set_position':
-        console.log('Sending set_position to "' + message + '" command to device:' + device)
         stickUsb.vnBlindSetPosition(device, parseInt(message), parseInt(shade_position[device]['angle']))
-        break;
+        break
       case 'set_tilt':
-        console.log('Sending set_tilt to "' + message + '" command to device:' + device)
         stickUsb.vnBlindSetPosition(device, parseInt(shade_position[device]['position']), parseInt(message))
-        break;
+        break
+      //default:
+      //  console.log('Unrecognised command from HA')
     }
   } else if (scope == 'homeassistant') {
-    if (topic.split('/')[1] == 'status') {
-      switch (message.toString()) {
-        case 'online':
-          console.log('Home Assistant is online now')
-          registerDevices()
-          break;
-        default:
-          console.log('Home Assistant is ' + message.toString() +' now')
-      }
+    if (topic.split('/')[1] == 'status' && message.toString() == 'online') {
+      registerDevices()
     }
   }
 })
