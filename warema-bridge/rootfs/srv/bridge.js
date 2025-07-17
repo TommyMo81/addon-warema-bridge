@@ -170,6 +170,60 @@ function registerDevices() {
   }
 }
 
+/**
+ * Publishes a discovery payload to MQTT to register a weather station
+ * @param {number} snr 
+ */
+function registerWeatherStation(snr) {
+  logger.debug("Registering Weather Station " + snr + " (" + (typeof snr) +")");
+  var topic_base = 'homeassistant/sensor/warema/' + snr;
+
+  var payload = {
+    availability: [
+      {topic: 'warema/bridge/state'},
+      {topic: topic_base + '/availability'}
+    ],
+    state_topic: topic_base + '/state',
+    device: {
+      identifiers: snr,
+      manufacturer: 'Warema',
+      model: 'Weather Station',
+    },
+    force_update: true
+  }
+
+  client.publish( topic_base + '_illuminance/config', JSON.stringify({
+      ...payload,
+      unique_id: snr + '_illuminance',
+      value_template: '{{value_json.illuminance}}',
+      device_class: 'illuminance',
+      unit_of_measurement: 'lx',
+    }));
+
+  client.publish( topic_base + '_temperature/config', JSON.stringify({
+    ...payload,
+    unique_id: snr + '_temperature',
+    value_template: '{{value_json.temperature}}',
+    device_class: 'temperature',
+    unit_of_measurement: '°C',
+  }))
+
+  client.publish( topic_base + '_wind/config', JSON.stringify({
+    ...payload,
+    unique_id: snr + '_wind',
+    value_template: '{{value_json.wind}}',
+  }))
+
+  client.publish( topic_base + '_rain/config', JSON.stringify({
+    ...payload,
+    unique_id: snr + '_rain',
+    value_template: '{{value_json.rain}}',
+  }))
+
+  client.publish( topic_base + '/availability', 'online', {retain: true})
+  registered_shades += snr
+}
+
 function callback(err, msg) {
   if(err) {
     console.log('ERROR: ' + err);
@@ -184,55 +238,9 @@ function callback(err, msg) {
         break;
       case 'wms-vb-rcv-weather-broadcast':
         if (registered_shades.includes(msg.payload.weather.snr)) {
-          client.publish('warema/' + msg.payload.weather.snr + '/illuminance/state', msg.payload.weather.lumen.toString(), {retain: true})
-          client.publish('warema/' + msg.payload.weather.snr + '/temperature/state', msg.payload.weather.temp.toString(), {retain: true})
-          client.publish('warema/' + msg.payload.weather.snr + '/wind_speed/state', msg.payload.weather.wind.toString(), {retain: true})
+          client.publish('homeassistant/sensor/warema/' + msg.payload.weather.snr + '/state', JSON.stringify( msg.payload.weather ));
         } else {
-          var availability_topic = 'warema/' + msg.payload.weather.snr + '/availability'
-          var payload = {
-            name: null,
-            availability: [
-              {topic: 'warema/bridge/state'},
-              {topic: availability_topic}
-            ],
-            device: {
-              identifiers: msg.payload.weather.snr,
-              manufacturer: 'Warema',
-              model: 'Weather Station',
-              name: msg.payload.weather.snr
-            },
-            force_update: true
-          }
-
-          var illuminance_payload = {
-            ...payload,
-            state_topic: 'warema/' + msg.payload.weather.snr + '/illuminance/state',
-            device_class: 'illuminance',
-            unique_id: msg.payload.weather.snr + '_illuminance',
-            unit_of_measurement: 'lx',
-          }
-          client.publish('homeassistant/sensor/' + msg.payload.weather.snr + '/illuminance/config', JSON.stringify(illuminance_payload), {retain: true})
-
-          var temperature_payload = {
-            ...payload,
-            state_topic: 'warema/' + msg.payload.weather.snr + '/temperature/state',
-            device_class: 'temperature',
-            unique_id: msg.payload.weather.snr + '_temperature',
-            unit_of_measurement: '°C',
-          }
-          client.publish('homeassistant/sensor/' + msg.payload.weather.snr + '/temperature/config', JSON.stringify(temperature_payload), {retain: true})
-
-          var wind_payload = {
-            ...payload,
-            state_topic: 'warema/' + msg.payload.weather.snr + '/wind_speed/state',
-            device_class: 'wind_speed',
-            unique_id: msg.payload.weather.snr + '_wind_speed',
-            unit_of_measurement: 'm/s',
-          }
-          client.publish('homeassistant/sensor/' + msg.payload.weather.snr + '/wind/config', JSON.stringify(wind_payload), {retain: true})
-
-          client.publish(availability_topic, 'online', {retain: true})
-          registered_shades.push(msg.payload.weather.snr)
+          registerWeatherStation(msg.payload.weather.snr);
         }
         break;
       case 'wms-vb-blind-position-update':
