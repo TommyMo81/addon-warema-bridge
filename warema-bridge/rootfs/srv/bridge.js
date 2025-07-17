@@ -145,6 +145,21 @@ function registerDevice(element) {
         set_position_topic: 'warema/' + element.snr + '/set_position',
       }
       break
+    case 28:
+      model = 'LED'
+      payload = {
+        ...base_payload,
+        device: {
+          ...base_device,
+          model: model
+        },
+        position_open: 0,
+        position_closed: 100,
+        command_topic: 'warema/' + element.snr + '/set',
+        position_topic: 'warema/' + element.snr + '/position',
+        set_position_topic: 'warema/' + element.snr + '/set_position',
+      }
+      break
     default:
       console.log('Unrecognized device type: ' + element.type)
       model = 'Unknown model ' + element.type
