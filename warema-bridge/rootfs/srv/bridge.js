@@ -206,6 +206,7 @@ function callback(err, msg) {
           client.publish('homeassistant/sensor/warema/' + msg.payload.weather.snr + '/state', 
                          JSON.stringify( msg.payload.weather ));
         } else {
+	  console.log('Warema Weather Station registration via wms-vb-rcv-weather-broadcast')
           registerWeatherStation(msg.payload.weather.snr);
         }
         break
