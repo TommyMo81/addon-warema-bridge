@@ -52,8 +52,8 @@ function registerDevice(element) {
 
   var model
   var payload
-  switch (element.type) {
-    case "63":
+  switch (parseInt(element.type)) {
+    case 63:
       model = 'Weather station Pro'
       payload = {
         ...base_payload,
@@ -64,9 +64,9 @@ function registerDevice(element) {
       }          
       break;
     // WMS WebControl Pro - while part of the network, we have no business to do with it.
-    case "09":
+    case 9:
       return
-    case "20":
+    case 20:
       model = 'Plug receiver'
       payload = {
         ...base_payload,
@@ -87,7 +87,7 @@ function registerDevice(element) {
         tilt_max: -100,
       }
       break;
-    case "21":
+    case 21:
       model = 'Actuator UP'
       payload = {
         ...base_payload,
@@ -108,7 +108,7 @@ function registerDevice(element) {
         tilt_max: -100,
       }
       break;
-    case "25":
+    case 25:
       model = 'Vertical awning'
       payload = {
         ...base_payload,
@@ -123,7 +123,7 @@ function registerDevice(element) {
         set_position_topic: 'warema/' + snr + '/set_position',
       }
       break;
-    case "28":
+    case 28:
         model = 'LED';
         payload = {
             ...base_payload,
